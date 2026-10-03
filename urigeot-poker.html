@@ -398,12 +398,12 @@ body[data-screen="game"] #game{display:block;}
 const firebase Config = {
   apiKey: "AIzaSyDQ7DWk2xkv9Mnyz0gXmSiicykB3IlJGdc",
   authDomain: "poker-dda46.firebaseapp.com",
+ databaseURL: "https://poker-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "poker-dda46",
   storageBucket: "poker-dda46.firebasestorage.app",
   messagingSenderId: "124234980246",
   appId: "1:124234980246:web:a6d9f50caf49b3e44cdbb7"
 };
-
 /* ═══════════ 카드 종류 ═══════════ */
 const TYPES=[
   {k:'gat',     ko:'갓',     en:'Gat',       c:'#2B2B33'},
@@ -539,31 +539,53 @@ let code='', myId='', myName='', isHost=false;
 let sel={card:null,target:null,claim:null}, selKey='';
 let lastRevealKey='', lastEndKey='';
 
-function configOK(){ return !/YOUR_/.test(firebaseConfig.apiKey) && !/YOUR_/.test(firebaseConfig.databaseURL); }
-function initFirebase(){
+function configOK(){ return !!firebaseConfig.apiKey && !/YOUR_/.test(firebaseConfig.apiKey); }
+function initFirebase(msgEl){
+  const say=m=>{ if(msgEl) msgEl.textContent=m; else toast(m); };
   if(!configOK()){ openOv('ovSetup'); return false; }
-  if(!db){ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
-  return true;
+  if(!firebaseConfig.databaseURL || /YOUR_/.test(firebaseConfig.databaseURL)){
+    say('firebaseConfig에 databaseURL이 없어요. Realtime Database 화면 위쪽의 https://…firebaseio.com 주소를 databaseURL: "…" 로 넣어 주세요.');
+    return false;
+  }
+  if(!/^https:\/\/.+\.(firebaseio\.com|firebasedatabase\.app)\/?$/.test(firebaseConfig.databaseURL)){
+    say('databaseURL 형식이 이상해요: '+firebaseConfig.databaseURL+' (https://프로젝트-default-rtdb.firebaseio.com 또는 …firebasedatabase.app 이어야 해요)');
+    return false;
+  }
+  if(typeof firebase==='undefined'){ say('Firebase 스크립트를 못 불러왔어요. 인터넷 연결(또는 학교 네트워크 차단)을 확인해 주세요.'); return false; }
+  try{
+    if(!db){ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
+    return true;
+  }catch(e){ console.error(e); say('Firebase 초기화 오류: '+(e.message||e)); return false; }
+}
+function withTimeout(p,ms){ return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('TIMEOUT')),ms))]); }
+function errText(e){
+  const m=String(e&&e.message||e);
+  if(m==='TIMEOUT') return '10초 동안 응답이 없어요. databaseURL이 맞는지, Realtime Database를 만들었는지 확인해 주세요.';
+  if(/permission|PERMISSION/i.test(m)) return '권한 오류예요. Realtime Database → 규칙 탭을 ".read": true, ".write": true 로 바꾸고 "게시"를 눌러 주세요.';
+  if(/network|NETWORK|fetch/i.test(m)) return '네트워크 오류예요. 인터넷 연결이나 학교 네트워크 차단을 확인해 주세요.';
+  return '오류: '+m;
 }
 function saveSession(){ try{ localStorage.setItem('ugp_'+code, JSON.stringify({pid:myId,name:myName})); }catch(e){} }
 function loadSession(c){ try{ return JSON.parse(localStorage.getItem('ugp_'+c)||'null'); }catch(e){ return null; } }
 
 /* ═══════════ 방 만들기 / 참여 ═══════════ */
 async function createRoom(){
-  const name=$('#hostName').value.trim();
-  if(!name){ $('#msgCreate').textContent='이름을 입력해 주세요.'; return; }
-  if(!initFirebase()) return;
-  $('#btnCreate').disabled=true;
-  let c=genCode();
-  for(let i=0;i<5;i++){ const s=await db.ref('rooms/'+c).get(); if(!s.exists()) break; c=genCode(); }
-  myId='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  myName=name; code=c; isHost=true;
-  await db.ref('rooms/'+c).set({
-    info:{host:myId,createdAt:Date.now()},
-    players:{[myId]:{name,joinedAt:Date.now(),online:true}},
-    game:{status:'lobby'}
-  });
-  saveSession(); enterRoom();
+  const name=$('#hostName').value.trim(); const m=$('#msgCreate'); m.textContent='';
+  if(!name){ m.textContent='이름을 입력해 주세요.'; return; }
+  if(!initFirebase(m)) return;
+  $('#btnCreate').disabled=true; m.textContent='방을 만드는 중…'; m.style.color='var(--ink-soft)';
+  try{
+    let c=genCode();
+    for(let i=0;i<5;i++){ const s=await withTimeout(db.ref('rooms/'+c).get(),10000); if(!s.exists()) break; c=genCode(); }
+    myId='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    myName=name; code=c; isHost=true;
+    await withTimeout(db.ref('rooms/'+c).set({
+      info:{host:myId,createdAt:Date.now()},
+      players:{[myId]:{name,joinedAt:Date.now(),online:true}},
+      game:{status:'lobby'}
+    }),10000);
+    saveSession(); enterRoom(); m.textContent='';
+  }catch(e){ console.error(e); m.style.color='var(--red)'; m.textContent=errText(e); }
   $('#btnCreate').disabled=false;
 }
 async function joinRoom(){
@@ -571,10 +593,12 @@ async function joinRoom(){
   const m=$('#msgJoin'); m.textContent='';
   if(c.length!==4){ m.textContent='방 코드 4글자를 입력해 주세요.'; return; }
   if(!name){ m.textContent='이름을 입력해 주세요.'; return; }
-  if(!initFirebase()) return;
-  $('#btnJoin').disabled=true;
-  const s=await db.ref('rooms/'+c).get();
-  $('#btnJoin').disabled=false;
+  if(!initFirebase(m)) return;
+  $('#btnJoin').disabled=true; m.textContent='방을 찾는 중…';
+  let s;
+  try{ s=await withTimeout(db.ref('rooms/'+c).get(),10000); }
+  catch(e){ console.error(e); $('#btnJoin').disabled=false; m.textContent=errText(e); return; }
+  $('#btnJoin').disabled=false; m.textContent='';
   if(!s.exists()){ m.textContent='그 코드의 방이 없어요. 다시 확인해 주세요.'; return; }
   const r=s.val(); const players=r.players||{};
   const old=loadSession(c);
@@ -586,7 +610,8 @@ async function joinRoom(){
   if(Object.keys(players).length>=MAX_PLAYERS){ m.textContent='방이 꽉 찼어요 (4명).'; return; }
   myId='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   myName=name; code=c; isHost=false;
-  await db.ref('rooms/'+c+'/players/'+myId).set({name,joinedAt:Date.now(),online:true});
+  try{ await withTimeout(db.ref('rooms/'+c+'/players/'+myId).set({name,joinedAt:Date.now(),online:true}),10000); }
+  catch(e){ console.error(e); m.textContent=errText(e); return; }
   saveSession(); enterRoom();
 }
 function enterRoom(){
@@ -888,7 +913,7 @@ function init(){
   $('#joinCode').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
   document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o&&o.id==='ovRules') closeOv('ovRules'); }));
   const u=new URL(location.href); const rc=u.searchParams.get('room');
-  if(rc){ $('#joinCode').value=rc.toUpperCase(); const old=loadSession(rc.toUpperCase()); if(old){ $('#joinName').value=old.name; if(initFirebase()) joinRoom(); } }
+  if(rc){ $('#joinCode').value=rc.toUpperCase(); const old=loadSession(rc.toUpperCase()); if(old){ $('#joinName').value=old.name; if(initFirebase($('#msgJoin'))) joinRoom(); } }
   if(!configOK()) openOv('ovSetup');
 }
 init();
