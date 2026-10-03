@@ -214,7 +214,7 @@ body[data-screen="game"] #game{display:block;}
 .stage h2{font-size:22px;margin-bottom:6px;}
 .stage .hint{font-size:14px;color:var(--ink-soft);margin-bottom:12px;}
 .stage .claim{
-  display:inline-block;font-family:'Hahmlet',serif;font-weight:900;font-size:24px;color:var(--ink);
+  display:inline-block;font-family:'Hahmlet',serif;font-weight:900;font-size:22px;color:var(--ink);
   background:var(--paper);border:2px solid var(--gold);border-radius:999px;padding:6px 20px;margin:8px 0 10px;
   position:relative;
 }
@@ -366,11 +366,11 @@ body[data-screen="game"] #game{display:block;}
   <h2>우리것 포커 규칙</h2>
   <dl class="rules">
     <dt>카드</dt><dd>갓·김치·송편·투호·한복·한지·공기돌, 7종류 × 8장. 모두 똑같이 나눠 가져요.</dd>
-    <dt>카드 넘기기</dt><dd>내 차례에 손패 한 장을 골라 친구에게 뒤집어 건네며 말해요. "이건 김치야!" — 진실이어도, 거짓이어도 괜찮아요.</dd>
+    <dt>카드 넘기기</dt><dd>내 차례에 손패 한 장을 골라 친구에게 뒤집어 건네며 물어요. "Do you know about kimchi?" — 카드가 진짜 김치여도, 아니어도 괜찮아요.</dd>
     <dt>받은 사람의 선택</dt>
-    <dd>① <b>진실!</b> 또는 <b>거짓!</b>을 외치고 카드를 뒤집어요.<br>
-        ② <b>몰래 확인</b>하고, 아직 이 카드를 못 본 친구에게 다시 넘겨요(말은 새로 해도 돼요).</dd>
-    <dt>결과</dt><dd>맞히면 <b>마지막에 건넨 사람</b>이, 틀리면 <b>외친 사람</b>이 카드를 자기 앞에 펼쳐 놓아요. 카드를 받은 사람이 다음 차례예요.</dd>
+    <dd>① 카드가 질문과 같다고 생각하면 <b>Yes, I do.</b>, 다르다고 생각하면 <b>No, I don't.</b>라고 답하고 카드를 뒤집어요.<br>
+        ② <b>몰래 확인</b>하고, 아직 이 카드를 못 본 친구에게 다시 넘겨요(질문은 새로 해도 돼요).</dd>
+    <dt>결과</dt><dd>답이 맞으면 <b>마지막에 건넨 사람</b>이, 틀리면 <b>답한 사람</b>이 카드를 자기 앞에 펼쳐 놓아요. 카드를 받은 사람이 다음 차례예요.</dd>
     <dt>패배</dt><dd>자기 앞에 <b>같은 그림 4장</b>이 쌓이거나, 넘길 카드가 없으면 혼자 져요. 나머지 모두가 승리!</dd>
   </dl>
   <div style="margin-top:16px"><button class="btn block" onclick="closeOv('ovRules')">알겠어요</button></div>
@@ -396,13 +396,13 @@ body[data-screen="game"] #game{display:block;}
    ║  1) Firebase 설정 — 여기만 바꾸면 됩니다                 ║
    ╚══════════════════════════════════════════════════════════╝ */
 const firebaseConfig = {
-  apiKey: "AIzaSyDgnc0dPDJJBujfG3AHLKOBD21Pa5T0lrU",
-  authDomain: "english-game-3d6b4.firebaseapp.com",
-  databaseURL: "https://english-game-3d6b4-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "english-game-3d6b4",
-  storageBucket: "english-game-3d6b4.firebasestorage.app",
-  messagingSenderId: "163584791774",
-  appId: "1:163584791774:web:f52ef661d74559bf719e4f"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:0000000000000000"
 };
 
 /* ═══════════ 카드 종류 ═══════════ */
@@ -494,7 +494,8 @@ function token(t,n,warn){
 /* ═══════════ 한국어 조사 ═══════════ */
 function hasJong(s){ if(!s) return false; const c=s.charCodeAt(s.length-1); if(c<0xAC00||c>0xD7A3) return false; return (c-0xAC00)%28!==0; }
 function j(s,a,b){ return s+(hasJong(s)?a:b); }   // j(이름,'이','가')
-function claimText(t){ return '이건 '+j(TYPES[t].ko,'이야','야')+'!'; }
+function claimText(t){ return 'Do you know about '+TYPES[t].en.toLowerCase()+'?'; }
+const YES='Yes, I do.', NO="No, I don't.";
 
 /* ═══════════ 소리 (Web Audio) ═══════════ */
 let actx=null;
@@ -799,50 +800,50 @@ function statusText(g){
 function stageHTML(g){
   const t=g.turn||{}; const n=pid=>esc(pname(pid)); const me=myId;
   const chain=list(t.chain);
-  const chainHTML=chain.length>1?`<div class="chain">${chain.map(c=>`<span>${n(c.from)} → ${n(c.to)}: ${TYPES[c.claim].ko}</span>`).join('')}</div>`:'';
+  const chainHTML=chain.length>1?`<div class="chain">${chain.map(c=>`<span>${n(c.from)} → ${n(c.to)}: ${TYPES[c.claim].en.toLowerCase()}?</span>`).join('')}</div>`:'';
 
   if(t.phase==='choose'){
     if(t.actor!==me) return `<h2>${j(n(t.actor),'이','가')} 카드를 고르고 있어요</h2><div class="hint">곧 누군가에게 카드가 날아갑니다…</div><div class="cardstage">${cardHTML(null,96)}</div>`;
     const targets=list(g.order).filter(p=>p!==me);
-    return `<h2>내 차례</h2><div class="hint">카드 한 장을 골라, 친구에게 뒤집어 건네며 말해요. 거짓말도 OK!</div>
+    return `<h2>내 차례</h2><div class="hint">카드 한 장을 골라 친구에게 뒤집어 건네며 물어봐요. 카드와 다른 걸 물어도 OK!</div>
       <div class="steplab ${sel.card!=null?'done':''}"><i>1</i>아래 손패에서 카드 고르기 ${sel.card!=null?'— '+TYPES[sel.card].ko:''}</div>
       <div class="steplab ${sel.target?'done':''}"><i>2</i>누구에게 줄까?</div>
       <div class="pickrow">${targets.map(p=>`<button data-tg="${p}" class="${sel.target===p?'on':''}">${n(p)}</button>`).join('')}</div>
-      <div class="steplab ${sel.claim!=null?'done':''}"><i>3</i>뭐라고 말할까?</div>
+      <div class="steplab ${sel.claim!=null?'done':''}"><i>3</i>뭐라고 물어볼까?</div>
       <div class="claimgrid">${TYPES.map((T,i)=>`<button data-cl="${i}" class="${sel.claim===i?'on':''}" style="--c:${T.c}">${icon(i)}${T.ko}</button>`).join('')}</div>
       <div class="actions"><button class="btn gold big" id="btnPass" ${sel.card!=null&&sel.target&&sel.claim!=null?'':'disabled'}>${sel.claim!=null?'“'+claimText(sel.claim)+'” 하고 넘기기':'넘기기'}</button></div>`;
   }
   if(t.phase==='respond'){
     const cardV=`<div class="cardstage">${cardHTML(null,110)}</div>`;
-    const claim=`<div class="who"><b>${n(t.from)}</b>${hasJong(pname(t.from))?'이':'가'} ${t.actor===me?'나':'<b>'+n(t.to)+'</b>'}에게 카드를 건네며…</div><div class="claim">${claimText(t.claim)}</div>`;
-    if(t.actor!==me) return `${claim}${cardV}<div class="hint">${j(n(t.actor),'이','가')} 진실인지 거짓인지 고민 중…</div>${chainHTML}`;
+    const claim=`<div class="who"><b>${n(t.from)}</b>${hasJong(pname(t.from))?'이':'가'} ${t.actor===me?'나':'<b>'+n(t.to)+'</b>'}에게 카드를 건네며 물어요</div><div class="claim">${claimText(t.claim)}</div>`;
+    if(t.actor!==me) return `${claim}${cardV}<div class="hint">${j(n(t.actor),'이','가')} Yes인지 No인지 고민 중…</div>${chainHTML}`;
     const seen=list(t.seen); const cand=list(g.order).filter(p=>p!==me&&!seen.includes(p));
     return `${claim}${cardV}
       <div class="actions">
-        <button class="btn green" id="btnTrue">진실이야!</button>
-        <button class="btn red" id="btnFalse">거짓이야!</button>
+        <button class="btn green" id="btnTrue">Yes, I do.</button>
+        <button class="btn red" id="btnFalse">No, I don't.</button>
         <button class="btn ghost" id="btnPeek" ${cand.length?'':'disabled'}>몰래 보고 넘기기</button>
       </div>
-      <div class="hint" style="margin-top:8px">${cand.length?'맞히면 '+j(n(t.from),'이','가')+', 틀리면 내가 카드를 받아요.':'모두 이 카드를 봤어요. 이제 맞혀야 해요!'}</div>${chainHTML}`;
+      <div class="hint" style="margin-top:8px">${cand.length?'답이 맞으면 '+j(n(t.from),'이','가')+', 틀리면 내가 카드를 받아요.':'모두 이 카드를 봤어요. 이제 Yes/No로 답해야 해요!'}</div>${chainHTML}`;
   }
   if(t.phase==='passon'){
     if(t.actor!==me) return `<h2>${j(n(t.actor),'이','가')} 카드를 몰래 봤어요</h2><div class="hint">이제 다른 친구에게 넘기려고 해요…</div><div class="cardstage">${cardHTML(null,96)}</div>${chainHTML}`;
     const seen=list(t.seen); const cand=list(g.order).filter(p=>p!==me&&!seen.includes(p));
-    return `<h2>진짜는 ${TYPES[t.card].ko}!</h2><div class="hint">아직 못 본 친구에게 넘기세요. 말은 새로 지어도 돼요.</div>
+    return `<h2>진짜는 ${TYPES[t.card].ko}!</h2><div class="hint">아직 못 본 친구에게 넘기세요. 질문은 새로 바꿔도 돼요.</div>
       <div class="cardstage">${cardHTML(t.card,96)}</div>
       <div class="steplab ${sel.target?'done':''}"><i>1</i>누구에게 넘길까?</div>
       <div class="pickrow">${cand.map(p=>`<button data-tg="${p}" class="${sel.target===p?'on':''}">${n(p)}</button>`).join('')}</div>
-      <div class="steplab ${sel.claim!=null?'done':''}"><i>2</i>뭐라고 말할까?</div>
+      <div class="steplab ${sel.claim!=null?'done':''}"><i>2</i>뭐라고 물어볼까?</div>
       <div class="claimgrid">${TYPES.map((T,i)=>`<button data-cl="${i}" class="${sel.claim===i?'on':''}" style="--c:${T.c}">${icon(i)}${T.ko}</button>`).join('')}</div>
       <div class="actions"><button class="btn gold big" id="btnPassOn" ${sel.target&&sel.claim!=null?'':'disabled'}>${sel.claim!=null?'“'+claimText(sel.claim)+'” 하고 넘기기':'넘기기'}</button></div>${chainHTML}`;
   }
   if(t.phase==='reveal'){
     const r=t.result||{}; const takerMe=r.taker===me;
-    const guessTxt=r.guess?'진실이야!':'거짓이야!';
-    const truthTxt=r.truth?'진실':'거짓';
+    const guessTxt=r.guess?YES:NO;
+    const truthTxt=r.truth?'정답은 Yes':'정답은 No';
     return `<div class="who"><b>${n(r.by)}</b>: “${guessTxt}”</div>
       <div class="flipper" id="flip" style="--w:110px;margin:10px auto"><div class="inner">${cardHTML(null,110,'')}${cardHTML(t.card,110,'front')}</div></div>
-      <div class="hint">말한 건 <b>${TYPES[t.claim].ko}</b>, 진짜는 <b>${TYPES[t.card].ko}</b> → ${truthTxt}이었어요</div>
+      <div class="hint">질문은 <b>${TYPES[t.claim].ko}</b>, 진짜 카드는 <b>${TYPES[t.card].ko}</b> → ${truthTxt}</div>
       <div class="result ${r.correct?'ok':'bad'}">${r.correct?'맞혔다!':'틀렸다!'}</div>
       <div class="who"><b>${n(r.taker)}</b>${takerMe?'(나)':''}${hasJong(pname(r.taker))?'이':'가'} ${TYPES[t.card].ko} 카드를 앞에 놓아요.</div>
       ${g.status==='ended'?'':`<div class="actions">${(takerMe||isHost)?`<button class="btn big" id="btnNext">${takerMe?'내 차례 시작':'다음 차례로'}</button>`:`<div class="hint">${j(n(r.taker),'이','가')} 다음 차례를 시작해요…</div>`}</div>`}
